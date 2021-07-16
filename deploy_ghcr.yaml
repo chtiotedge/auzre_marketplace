@@ -1,0 +1,800 @@
+## PV ====================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: edge-redis-data
+  namespace: edge
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: azurefile
+  azureFile:
+    secretName: azure-secret
+    secretNamespace: edge
+    shareName: edge-redis-data
+    readOnly: false
+  mountOptions:
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=1000
+  - gid=1000
+  - mfsymlinks
+  - nobrl
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: edge-sqlite-data-pv
+  namespace: edge
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: azurefile
+  azureFile:
+    secretName: azure-secret
+    secretNamespace: edge
+    shareName: edge-sqlite-data
+    readOnly: false
+  mountOptions:
+  - dir_mode=0700
+  - file_mode=0700
+  - uid=70
+  - gid=70
+  - mfsymlinks
+  - nobrl
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: edge-volumn
+  namespace: edge
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: azurefile
+  azureFile:
+    secretName: azure-secret
+    secretNamespace: edge
+    shareName: nginx-file-marketplace
+    readOnly: false
+  mountOptions:
+  - dir_mode=0777
+  - file_mode=0777
+  - uid=1000
+  - gid=1000
+  - mfsymlinks
+  - nobrl
+
+## PVC ====================================
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-redis-data-pvc
+  namespace: edge
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: azurefile
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: "edge-redis-data"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-sqlite-data-pvc
+  namespace: edge
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: azurefile
+  resources:
+    requests:
+      storage: 10Gi
+  volumeName: "edge-sqlite-data-pv"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: edge-volumn-pvc
+  namespace: edge
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: azurefile
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: "edge-volumn"
+## Service ====================================
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-zookeeper
+  namespace: edge
+spec:
+  selector:
+    name: iot-edge-zookeeper
+  ports:
+    - name: zookeeper
+      port: 2181
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-kafka
+  namespace: edge
+spec:
+  selector:
+    name: iot-edge-kafka
+  ports:     
+    - name: inter
+      port: 9090
+    - name: kafka
+      port: 9092
+---
+apiVersion: v1
+kind: Service
+metadata:  
+  name: iot-edge-redis
+  namespace: edge
+spec:  
+  selector:
+    name: iot-edge-redis
+  ports:
+    - name: redis
+      port: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-postgres
+  namespace: edge
+spec:
+  selector:
+    name: iot-edge-postgres    
+  ports:
+    - name: http
+      port: 80
+    - name: grpc
+      port: 8691
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-iam
+  labels:
+    name: iot-edge-iam
+  namespace : edge
+spec:  
+  selector:
+    name: iot-edge-iam
+  ports:
+  - name: outer
+    port: 80    
+  - name: inter
+    port: 18080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-api
+  labels:
+    name: iot-edge-api
+  namespace : edge
+spec:  
+  selector:
+    name: iot-edge-api    
+  ports:
+  - name: outer
+    port: 80    
+  - name: inter
+    port: 18080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-trigger
+  labels:
+    name: iot-edge-trigger  
+  namespace : edge
+spec:  
+  selector:
+    name: iot-edge-trigger
+  ports:
+  - name: outer
+    port: 80    
+  - name: inter
+    port: 18080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-edge-web
+  labels:
+    name: iot-edge-web
+  namespace : edge
+spec:  
+  selector:
+    name: iot-edge-web
+  ports:
+  - port: 80   
+---
+apiVersion: v1
+kind: Service
+metadata:  
+  name: iot-edge-center
+  namespace: edge
+spec:
+  type: ClusterIP  
+  selector:
+    name: iot-edge-center
+  ports:
+    - port: 8093
+---
+apiVersion: v1
+kind: Service
+metadata:  
+  labels:
+    name: edge-nginx-service
+  name: edge-nginx-service
+  namespace: edge  
+spec:  
+  type: LoadBalancer  
+  ports:
+  - name: http
+    port: 80      
+  selector:
+    name: edge-nginx                   
+## Deployment ====================================
+---      
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-zookeeper
+  name: iot-edge-zookeeper
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-zookeeper
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-zookeeper
+    spec:
+      containers:
+      - name: iot-edge-zookeeper
+        image: wurstmeister/zookeeper
+        imagePullPolicy: IfNotPresent
+        ports:
+         - containerPort: 2181
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+      restartPolicy: Always
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-kafka
+  name: iot-edge-kafka
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-kafka
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-kafka
+    spec:
+      containers:
+      - name: iot-edge-kafka
+        image: wurstmeister/kafka
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "INTERNAL:PLAINTEXT, EXTERNAL:PLAINTEXT"
+        - name: KAFKA_INTER_BROKER_LISTENER_NAME
+          value: "INTERNAL"
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          value: "iot-edge-zookeeper.edge:2181"
+        - name: KAFKA_ADVERTISED_LISTENERS
+          value: "INTERNAL://localhost:9090, EXTERNAL://iot-edge-kafka.edge:9092"
+        - name: KAFKA_LISTENERS
+          value: "INTERNAL://localhost:9090, EXTERNAL://:9092"
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: "1"
+        ports:          
+          - containerPort: 9090
+          - containerPort: 9092
+        resources:
+          requests:
+            cpu: 500m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 2048Mi
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-redis
+  name: iot-edge-redis
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-redis
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-redis
+    spec:
+      containers:
+      - name: iot-edge-redis
+        image: redis:6.0.9-alpine
+        command:
+          - redis-server
+          - "/etc/redis/redis.conf"
+        imagePullPolicy: IfNotPresent
+        ports:
+         - containerPort: 6379
+        resources:
+          requests:
+            cpu: 500m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 1536Mi
+        volumeMounts:
+          - mountPath: /etc/redis
+            name: volume
+            readOnly: false
+        securityContext:
+          allowPrivilegeEscalation: false
+      restartPolicy: Always      
+      volumes:
+        - name: volume
+          persistentVolumeClaim:
+            claimName: edge-redis-data-pvc      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-postgres
+  name: iot-edge-postgres
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-postgres
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-postgres
+    spec:
+      containers:
+      - name: iot-edge-postgres
+        image: ghcr.io/chtiotedge/iot-edge-postgres:20210709
+        imagePullPolicy: IfNotPresent      
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"        
+        - name: SPRING_PROFILES_ACTIVE
+          value: "oldstagelite,kafka"
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: "123456"
+        - name: SPRING_DATASOURCE_PATH
+          value: "/sqlite/edge.db"
+        - name: SERVER_PORT
+          value: "80"
+        - name: MANAGEMENT_SERVER_PORT
+          value: "19300"
+        ports:
+         - containerPort: 80
+         - containerPort: 8691
+         - containerPort: 19300
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1024Mi
+        volumeMounts:        
+        - mountPath: "/sqlite"
+          name: sqlite        
+      restartPolicy: Always      
+      volumes:        
+        - name: sqlite
+          persistentVolumeClaim:
+            claimName: edge-sqlite-data-pvc        
+      imagePullSecrets:
+      - name: regcred
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-iam
+  name: iot-edge-iam
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-iam
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-iam
+    spec:
+      containers:
+      - name: iot-edge-iam
+        image: ghcr.io/chtiotedge/iot-edge-iam:20210709
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"
+        - name: SERVER_PORT
+          value: "80"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "oldstage,kafka"
+        - name: IOT_HOME_URL
+          value: "http://iot.cht.com.tw/iot"
+        - name: MANAGEMENT_SERVER_PORT
+          value: "19300"
+        - name: SPRING_REDIS_HOST
+          value: "iot-edge-redis.edge"
+        - name: SPRING_REDIS_PASSWORD
+          value: "1qaz@WSXiot"
+        - name: GRPC_HOST
+          value: "iot-edge-postgres.edge"        
+        - name: EDGE_RSA_PUBLICKEY
+          value: "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDK19IGc4NoSYC+TGksIRjkFvmSi7FaxF+A26+eTqhsxd716nq5R22Ukf3jyDAYFkYXZz37k21URvZhM+jgnpFhv3ih3vMYStV+x7PP3RdwgufFPWhO2PebyPH2v+q3+BlUuwof7d+f5M0XwqF7Zh3YLVZdJuc+ZIbp0Nne5eK5bwIDAQAB"
+        - name: EDGE_RSA_PRIVATEKEY
+          value: "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMrX0gZzg2hJgL5MaSwhGOQW+ZKLsVrEX4Dbr55OqGzF3vXqerlHbZSR/ePIMBgWRhdnPfuTbVRG9mEz6OCekWG/eKHe8xhK1X7Hs8/dF3CC58U9aE7Y95vI8fa/6rf4GVS7Ch/t35/kzRfCoXtmHdgtVl0m5z5khunQ2d7l4rlvAgMBAAECgYEArVczlum94S/3AiiANALwp3Juwmn4HM31o0OZV1p2mcWaXGKNj6nXngAIjFA1sU/PhA5pLIT3B+9Aex6GIvW+29b6C1206z+B36VvXgif3pW+ht3oyqzVNbilp+rP0OywvrLjGspzYWONd/oJ+F/ySkiOwQof9O88AUCa7Bl0n2ECQQD77MAo1oJAgAwNAgB0atCC9H9SRaEJO26L5tf5KyYVZDCSuL/dixFq7j4kNxNYM/Nng5Z1lZF6E/oPMty1jMARAkEAzh/RDkMynTkUZ6TFgOay6EWagf+9bq8F+oYzlglCr44HoaW5y4IbhQ+e1Up+iPZk8w2s8wADjwKzuh5YdLlhfwJBAOTUewNdPXjrFocmP1V/xKB/B7uqZYkmQ9auO5Un3XLmy7wqNpU9Afg4KZfpsxeWMMzg2OU7k6XoyWXO1G3QSJECQFev4VeX7qhD6BJPXlX/zoxRT/GNwiCcBIcXIErrlZrpaQWzYt7YcqyggIlsL3hEmZ1sa+7USq9EDwFWd3rwgjECQC0nfe+jr157W9c5owSvrp1F1spMFCAI4HGidKd/iImcgSoOkx60tjQ5dx48IekMNOM57yofPzUa6l3tgfg8jU8="
+        ports:
+         - containerPort: 80
+         - containerPort: 18080
+         - containerPort: 19300
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 250m
+            memory: 512Mi        
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: regcred      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-api
+  name: iot-edge-api
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-api
+    spec:
+      containers:
+      - name: iot-edge-api
+        image: ghcr.io/chtiotedge/iot-edge-api:20210709
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"
+        - name: SERVER_PORT
+          value: "80"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "oldstage,kafka"
+        - name: SPRING_REDIS_PASSWORD
+          value: "1qaz@WSXiot"
+        - name: KAFKA_STREAMS_BOOTSTRAP_SERVERS_CONFIG
+          value: "iot-edge-kafka.edge:9092"
+        - name: MANAGEMENT_SERVER_PORT
+          value: "19300"
+        ports:
+         - containerPort: 80
+         - containerPort: 18080
+         - containerPort: 19300
+        resources:
+          requests:
+            cpu: 500m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 1536Mi        
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: regcred      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-trigger
+  name: iot-edge-trigger
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-trigger
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-trigger
+    spec:
+      containers:
+      - name: iot-edge-trigger
+        image: ghcr.io/chtiotedge/iot-edge-trigger:20210709
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"        
+        - name: SPRING_PROFILES_ACTIVE
+          value: "oldstage,kafka"        
+        - name: MANAGEMENT_SERVER_PORT
+          value: "19300"
+        - name: KAFKA_STREAMS_BOOTSTRAP_SERVERS_CONFIG
+          value: "iot-edge-kafka.edge:9092"
+        - name: KAFKA_GROUP_ID
+          value: "trigger"
+        - name: KAFKA_SERVERS
+          value: "iot-edge-kafka.edge:9092"
+        ports:
+         - containerPort: 80         
+         - containerPort: 18080
+         - containerPort: 19300
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi        
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: regcred      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-web
+  name: iot-edge-web
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-web
+    spec:
+      containers:
+      - name: iot-edge-web
+        image: ghcr.io/chtiotedge/iot-edge-web:20210709
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"        
+        - name: SPRING_PROFILES_ACTIVE
+          value: "oldstage,kafka"        
+        - name: MANAGEMENT_SERVER_PORT
+          value: "19300"
+        - name: KAFKA_STREAMS_BOOTSTRAP_SERVERS_CONFIG
+          value: "iot-edge-kafka.edge:9092"
+        - name: EDGE_RSA_PUBLICKEY
+          value: "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDK19IGc4NoSYC+TGksIRjkFvmSi7FaxF+A26+eTqhsxd716nq5R22Ukf3jyDAYFkYXZz37k21URvZhM+jgnpFhv3ih3vMYStV+x7PP3RdwgufFPWhO2PebyPH2v+q3+BlUuwof7d+f5M0XwqF7Zh3YLVZdJuc+ZIbp0Nne5eK5bwIDAQAB"
+        - name: EDGE_RSA_PRIVATEKEY
+          value: "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMrX0gZzg2hJgL5MaSwhGOQW+ZKLsVrEX4Dbr55OqGzF3vXqerlHbZSR/ePIMBgWRhdnPfuTbVRG9mEz6OCekWG/eKHe8xhK1X7Hs8/dF3CC58U9aE7Y95vI8fa/6rf4GVS7Ch/t35/kzRfCoXtmHdgtVl0m5z5khunQ2d7l4rlvAgMBAAECgYEArVczlum94S/3AiiANALwp3Juwmn4HM31o0OZV1p2mcWaXGKNj6nXngAIjFA1sU/PhA5pLIT3B+9Aex6GIvW+29b6C1206z+B36VvXgif3pW+ht3oyqzVNbilp+rP0OywvrLjGspzYWONd/oJ+F/ySkiOwQof9O88AUCa7Bl0n2ECQQD77MAo1oJAgAwNAgB0atCC9H9SRaEJO26L5tf5KyYVZDCSuL/dixFq7j4kNxNYM/Nng5Z1lZF6E/oPMty1jMARAkEAzh/RDkMynTkUZ6TFgOay6EWagf+9bq8F+oYzlglCr44HoaW5y4IbhQ+e1Up+iPZk8w2s8wADjwKzuh5YdLlhfwJBAOTUewNdPXjrFocmP1V/xKB/B7uqZYkmQ9auO5Un3XLmy7wqNpU9Afg4KZfpsxeWMMzg2OU7k6XoyWXO1G3QSJECQFev4VeX7qhD6BJPXlX/zoxRT/GNwiCcBIcXIErrlZrpaQWzYt7YcqyggIlsL3hEmZ1sa+7USq9EDwFWd3rwgjECQC0nfe+jr157W9c5owSvrp1F1spMFCAI4HGidKd/iImcgSoOkx60tjQ5dx48IekMNOM57yofPzUa6l3tgfg8jU8="
+        ports:
+         - containerPort: 80         
+         - containerPort: 19300
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi        
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: regcred      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: iot-edge-center
+  name: iot-edge-center
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: iot-edge-center
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: iot-edge-center
+    spec:
+      containers:
+      - name: iot-edge-center
+        image: ghcr.io/chtiotedge/iot-edge-center:20210709
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: JASYPT_ENCRYPTOR_PASSWORD
+          value: "1qaz#EDC6yhn"        
+        - name: SPRING_PROFILES_ACTIVE
+          value: "cht5g"
+        - name: SPRING_REDIS_HOST
+          value: "iot-edge-redis.edge"        
+        - name: REDIS_HOST
+          value: "iot-edge-redis.edge"
+        - name: REDIS_PASSWORD
+          value: "ENC(G2vAVmK5KOiiq4ohRKdeX+eo8/nI+0r1)"
+        - name: IOT_EDGE_IAM_URL
+          value: "http://iot-edge-iam.edge:18080"
+        - name: IOT_EDGE_API_URL
+          value: "http://iot-edge-api.edge:18080"
+        - name: IOT_EDGE_CASSANDRA_URL
+          value: "http://iot-edge-cassandra-storage.edge:18080"
+        - name: IOT_EDGE_TRIGGER_URL
+          value: "http://iot-edge-trigger.edge:18080"
+        - name: IOT_EDGE_CENTER_URL
+          value: "http://iot-edge-center.edge:8093"
+        ports:
+         - containerPort: 8093         
+        resources:
+          requests:
+            cpu: 500m
+            memory: 768Mi
+          limits:
+            cpu: 1000m
+            memory: 1024Mi                
+      restartPolicy: Always
+      imagePullSecrets:
+      - name: regcred      
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    name: edge-nginx
+  name: edge-nginx
+  namespace: edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: edge-nginx
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        name: edge-nginx
+    spec:
+      containers:
+      - name: edge-nginx
+        image: nginx:1.21.0-alpine
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: "/etc/nginx/nginx.conf"
+          name: volume
+          subPath: nginx.conf
+          readOnly: true
+        - mountPath: "/etc/nginx/conf.d"
+          name: volume
+          subPath: conf.d          
+          readOnly: true
+        ports:
+        - containerPort: 80
+          protocol: TCP        
+      volumes:
+        - name: volume
+          persistentVolumeClaim:
+            claimName: edge-volumn-pvc
